@@ -4,9 +4,9 @@ import clsx from 'clsx';
 import { chainPropTypes } from '@material-ui/utils';
 import { withStyles, useTheme } from '@material-ui/core/styles';
 import { fade, lighten } from '@material-ui/core/styles/colorManipulator';
-import { useEventCallback, ownerWindow, useIsFocusVisible } from '@material-ui/core/utils';
-import { useForkRef } from '@material-ui/core/utils/utils/reactHelpers';
+import { useEventCallback, ownerWindow, useIsFocusVisible, useForkRef } from '@material-ui/core/utils';
 import ValueLabel from './ValueLabel';
+
 
 function asc(a, b) {
   return a - b;
@@ -296,6 +296,7 @@ const Slider = React.forwardRef(function Slider(props, ref) {
     ValueLabelComponent = ValueLabel,
     valueLabelDisplay = 'off',
     valueLabelFormat = Identity,
+    unsorted = false,
     ...other
   } = props;
   const theme = useTheme();
@@ -310,7 +311,7 @@ const Slider = React.forwardRef(function Slider(props, ref) {
   const valueDerived = isControlled ? valueProp : valueState;
   const range = Array.isArray(valueDerived);
   const instanceRef = React.useRef();
-  let values = range ? valueDerived.sort(asc) : [valueDerived];
+  let values = range ? unsorted ? valueDerived :valueDerived.sort(asc) : [valueDerived];
   values = values.map(value => clamp(value, min, max));
   const marks =
     marksProp === true && step !== null
@@ -404,7 +405,6 @@ const Slider = React.forwardRef(function Slider(props, ref) {
     }
 
     newValue = clamp(newValue, min, max);
-
     if (range) {
       const previousValue = newValue;
       newValue = setValueIndex({
@@ -412,8 +412,11 @@ const Slider = React.forwardRef(function Slider(props, ref) {
         source: valueDerived,
         newValue,
         index,
-      }).sort(asc);
-      focusThumb({ sliderRef, activeIndex: newValue.indexOf(previousValue) });
+      });
+      if (!unsorted) {
+        newValue.sort(asc);
+        focusThumb({ sliderRef, activeIndex: newValue.indexOf(previousValue) });
+      }
     }
 
     if (!isControlled) {
@@ -471,21 +474,25 @@ const Slider = React.forwardRef(function Slider(props, ref) {
         } else {
           activeIndex = previousIndex.current;
         }
-
         const previousValue = newValue;
         newValue = setValueIndex({
           values: values2,
           source,
           newValue,
           index: activeIndex,
-        }).sort(asc);
-        activeIndex = newValue.indexOf(previousValue);
+        });
+        
+        if (!unsorted) {
+          newValue.sort(asc)
+          activeIndex = newValue.indexOf(previousValue);
+        }
+
         previousIndex.current = activeIndex;
       }
 
       return { newValue, activeIndex };
     },
-    [max, min, axis, range, step, marks],
+    [max, min, axis, range, step, marks, unsorted],
   );
 
   const handleTouchMove = useEventCallback(event => {
@@ -501,7 +508,6 @@ const Slider = React.forwardRef(function Slider(props, ref) {
       values,
       source: valueDerived,
     });
-
     focusThumb({ sliderRef, activeIndex, setActive });
     if (!isControlled) {
       setValueState(newValue);
@@ -613,8 +619,9 @@ const Slider = React.forwardRef(function Slider(props, ref) {
     document.body.addEventListener('mouseup', handleTouchEnd);
   });
 
-  const trackOffset = valueToPercent(range ? values[0] : min, min, max);
-  const trackLeap = valueToPercent(values[values.length - 1], min, max) - trackOffset;
+  const sortedValues = unsorted ? [...values].sort(asc) : values;
+  const trackOffset = valueToPercent(range ? sortedValues[0] : min, min, max);
+  const trackLeap = valueToPercent(sortedValues[sortedValues.length - 1], min, max) - trackOffset;
   const trackStyle = {
     ...axisProps[axis].offset(trackOffset),
     ...axisProps[axis].leap(trackLeap),
